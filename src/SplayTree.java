@@ -1,24 +1,19 @@
-import java.util.Collection;
+import java.util.AbstractSet;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.Spliterator;
 
-public class SplayTree<T extends Comparable<T>> implements Set<T> {
-
+class SplayTree<V extends Comparable<V>> extends AbstractSet<V> implements Set<V> {
     private int size;
-    private Node root;
+    private SplayNode<V> root;
 
     public SplayTree() {
         root = null;
         size = 0;
     }
 
-    public Node<T> getRoot(){
-        return root;
-    }
     @Override
     public int size() {
-        return this.size;
+        return size;
     }
 
     @Override
@@ -28,169 +23,165 @@ public class SplayTree<T extends Comparable<T>> implements Set<T> {
 
     @Override
     public boolean contains(Object o) {
-        if (root == null) return false;
-        T obj = (T) o;
-        root = this.splay(root, obj);
-        return root.value.equals(obj);
-    }
-
-    @Override
-    public Iterator<T> iterator() {
-        return new SplayTreeIterator<T>(this);
-    }
-
-    @Override
-    public Object[] toArray() {
-        Object[] array = new Object[size];
-        int i = 0;
-        for (T t: this) {
-            array[i] = t;
-            i++;
+        if (o == null) return false;
+        V v = null;
+        try {
+            v = (V) o;
+        } catch (Exception ignored) {
         }
-        return array;
+        return search(v) != null;
     }
 
     @Override
-    public <T> T[] toArray(T[] ts) {
-        return (T[])this.toArray();
+    public Iterator<V> iterator() {
+        return new SplayTreeIterator(this, root);
     }
-// использовать астрактное дерево
+
+    public void rotateLeft(SplayNode c, SplayNode p) {
+        if ((c == null) || (p == null) || (p.left != c) || (c.parent != p)) throw new IllegalArgumentException();
+        if (p.parent != null) {
+            if (p == p.parent.left) p.parent.left = c;
+            else p.parent.right = c;
+        }
+        if (c.right != null) c.right.parent = p;
+        c.parent = p.parent;
+        p.parent = c;
+        p.left = c.right;
+        c.right = p;
+    }
+
+    public void rotateRight(SplayNode c, SplayNode p) {
+        if ((c == null) || (p == null) || (p.right != c) || (c.parent != p)) throw new IllegalArgumentException();
+        if (p.parent != null) {
+            if (p == p.parent.left) p.parent.left = c;
+            else p.parent.right = c;
+        }
+        if (c.left != null) c.left.parent = p;
+        c.parent = p.parent;
+        p.parent = c;
+        p.right = c.left;
+        c.left = p;
+    }
+
+    private void splay(SplayNode<V> s) {
+        while (s.parent != null) {
+            SplayNode parent = s.parent;
+            SplayNode grandParent = parent.parent;
+            if (grandParent == null) {
+                if (s == parent.left) rotateLeft(s, parent);
+                else rotateRight(s, parent);
+            } else {
+                if (s == parent.left) {
+                    if (parent == grandParent.left) {
+                        rotateLeft(parent, grandParent);
+                        rotateLeft(s, parent);
+                    } else {
+                        rotateLeft(s, s.parent);
+                        rotateRight(s, s.parent);
+                    }
+                } else {
+                    if (parent == grandParent.left) {
+                        rotateRight(s, s.parent);
+                        rotateLeft(s, s.parent);
+                    } else {
+                        rotateRight(parent, grandParent);
+                        rotateRight(s, parent);
+                    }
+                }
+            }
+        }
+        root = s;
+    }
+
     @Override
-    // not done
-    public boolean add(T t) {
-
-        if (root == null) {
-            root = new Node<T>(t);
-            size = 0;
-            return true;
+    public boolean add(V v) {
+        if (v == null) return false;
+        SplayNode a = root;
+        SplayNode p = null;
+        while (a != null) {
+            p = a;
+            a = v.compareTo((V) p.value) > 0 ? a.right : a.left;
         }
-
-        root = splay(root, t);
-        Node<T> node = new Node<T>(t);
-        if(t.compareTo(node.value) < 0) {
-            node.left = root.left;
-
-        }
-        return false;
+        a = new SplayNode();
+        a.value = v;
+        a.parent = p;
+        if (p == null) root = a;
+        else if (v.compareTo((V) p.value) > 0) p.right = a;
+        else p.left = a;
+        splay(a);
+        size++;
+        return true;
     }
 
     @Override
     public boolean remove(Object o) {
-        if (root == null) return false;
-
-        T t = (T) o;
-        root = splay(root, t);
-        if (t.equals(root.value)) {
-            if (root.left == null) {
-                root = root.right;
-            }
-            else {
-                Node<T> x = root.right;
-                root = root.left;
-                splay(root, t);
-                root.right = x;
-            }
-            size--;
-            return true;
+        if (o == null) return false;
+        V v = null;
+        try {
+            v = (V) o;
+        } catch (Exception ignored) {
         }
-        return false;
+        SplayNode node = search(v);
+        if (node == null) return false;
+        splay(node);
+        if ((node.left != null) && (node.right != null)) {
+            SplayNode min = node.left;
+            while (min.right != null) min = min.right;
+            min.right = node.right;
+            node.right.parent = min;
+            node.left.parent = null;
+            root = node.left;
+        } else if (node.right != null) {
+            node.right.parent = null;
+            root = node.right;
+        } else if (node.left != null) {
+            node.left.parent = null;
+            root = node.left;
+        } else {
+            root = null;
+        }
+        node.parent = null;
+        node.left = null;
+        node.right = null;
+        size--;
+        return true;
     }
 
-    @Override
-    // not done
-    public boolean containsAll(Collection<?> collection) {
-        return false;
-    }
-
-    @Override
-    public boolean addAll(Collection<? extends T> collection) {
-        return collection.stream().allMatch(this::add);
-    }
-
-    @Override
-    // not done
-    public boolean retainAll(Collection<?> collection) {
-        return false;
-    }
-
-    @Override
-    // not done
-    public boolean removeAll(Collection<?> collection) {
-        return false;
+    private SplayNode search(V v) {
+        if (v == null) return null;
+        SplayNode p = null;
+        SplayNode s = root;
+        while (s != null) {
+            p = s;
+            if (v.compareTo((V) s.value) > 0) s = s.right;
+            else if (v.compareTo((V) s.value) < 0) s = s.left;
+            else if (v.compareTo((V) s.value) == 0) {
+                splay(s);
+                return s;
+            }
+        }
+        if (p != null) {
+            splay(p);
+            return null;
+        }
+        return null;
     }
 
     @Override
     public void clear() {
-        this.forEach(this::remove);
+        root = null;
+        size = 0;
     }
 
-    @Override
-    // not done
-    public Spliterator<T> spliterator() {
-        return null;
+    public void print() {
+        print(root);
     }
 
-    // like usual binary tree + splay()
-    public Node search(T value) {
-        return null;
-    }
-
-
-    // 3 variants - zig, zig-zig, zag
-    private Node<T> splay(Node<T> node, T value) {
-        if (root == null) return null;
-
-        if (value.compareTo(node.value) < 0) {
-            if (node.left == null) {
-                return node;
-            }
-
-            if (value.compareTo(node.left.value) < 0) {
-                node.left.left = splay(node.left.left, value);
-                node = rotateRight(node);
-            }
-            else {
-                if (value.compareTo(node.left.value) > 0) {
-                    node.left.right = splay(node.left.right, value);
-                    if (node.left.right != null)
-                        node.left = rotateLeft(node.left);
-                }
-            }
-            return node.left == null ? node : rotateRight(node);
+    private void print(SplayNode node) {
+        if (node != null) {
+            print(node.left);
+            System.out.print(node.value + " ");
+            print(node.right);
         }
-
-        if (value.compareTo(node.value) > 0) {
-            if (node.right == null) {
-                return node;
-            }
-
-            if (value.compareTo(node.right.value) < 0) {
-                node.right.left = splay(node.right.left, value);
-                if (node.right.left != null)
-                    node.right = rotateRight(node.right);
-            }
-            else {
-                if (value.compareTo(node.right.value) > 0) {
-                    node.right.right = splay(node.right.right, value);
-                    node = rotateRight(node);
-                }
-            }
-            return node.right == null ? node : rotateLeft(node);
-        }
-        return node;
-    }
-
-    private Node<T> rotateRight(Node<T> node) {
-        Node<T> newNode = node.right;
-        node.left = newNode.right;
-        newNode.right = node;
-        return newNode;
-    }
-
-    private Node<T> rotateLeft(Node<T> node) {
-        Node<T> newNode = node.left;
-        node.right = newNode.left;
-        newNode.left = node;
-        return newNode;
     }
 }
